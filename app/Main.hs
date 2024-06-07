@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Lib
+import Lib (listContents, simpleFS)
 
 main :: IO ()
-main = someFunc
+main = putStrLn $ listContents simpleFS
