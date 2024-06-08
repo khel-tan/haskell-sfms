@@ -55,6 +55,7 @@ test-suite haskell-sfms-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Ls
       Paths_haskell_sfms
   autogen-modules:
       Paths_haskell_sfms
@@ -64,4 +65,5 @@ test-suite haskell-sfms-test
   build-depends:
       base >=4.7 && <5
     , haskell-sfms
+    , hspec
   default-language: Haskell2010

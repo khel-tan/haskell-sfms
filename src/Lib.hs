@@ -2,6 +2,9 @@ module Lib
     ( someFunc,simpleFS,listContents
     ) where
 
+
+import Control.Monad.State
+
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
 
@@ -12,6 +15,7 @@ data File = File {
 } deriving (Show)
 
 data Tree = Node File | Directory String [Tree]
+type Filesystem = State Tree
 
 -- Create some files
 file1 :: File
