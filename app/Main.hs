@@ -1,6 +1,22 @@
 module Main (main) where
 
-import Lib (listContents, simpleFS)
+-- import Control.Monad.State (runState)
+import Lib 
+-- import Lib (printFileProperty)
+-- import Lib (listFS)
 
 main :: IO ()
-main = putStrLn $ listContents simpleFS
+main = do
+  -- let (_, finalState) =
+  --       runState
+  --         ( do
+  --             addFile file1
+  --             addFile file2
+  --             addDirectory "practice"
+  --         )
+  --         initialState
+  -- putStrLn result
+  -- putStrLn $ listContents finalState
+  let state = simpleFS
+  putStrLn $ listFS state
+  putStrLn $ printFileProperty state getName ["README.md"]
