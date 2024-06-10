@@ -23,7 +23,7 @@ type Content = String
 data File = TextFile
     { fileName :: Name,
     fileContent :: Content
-  } deriving (Show) 
+  } deriving (Show)
 data FSItem = Entry File | Directory Name [FSItem] deriving (Show)
 
 data FSCrumb = FSCrumb Name [FSItem] [FSItem] deriving (Show)
@@ -39,63 +39,57 @@ simpleFS = Directory "root"
                     Entry $ TextFile "README.md" "Some markdown"
                 ]
 
+
+navigate :: Name -> Filesystem -> Filesystem
+navigate name filesystem = case name of
+    ".." -> navigateUp filesystem
+    _ -> navigateDown name filesystem
+
+
 navigateDown :: Name -> Filesystem -> Filesystem
 navigateDown name (Directory dirName contents, crumbs) =
-    let (ls, target:rs) = break isNamed contents
-    in (target, FSCrumb dirName ls rs:crumbs)
+    let (ls, rest) = break isNamed contents
+    in case rest of
+        (target:rs) -> (target, FSCrumb dirName ls rs:crumbs)
+        [] -> error $ "Directory or file named " ++ name ++ " not found in " ++ dirName
     where
         isNamed (Entry textFile) = fileName textFile == name
         isNamed (Directory subdirName _) = subdirName == name
 navigateDown _ _ = error "Cannot navigate down from a file"
- 
+
+navigateUp :: Filesystem -> Filesystem
+navigateUp (currentDir, FSCrumb parentName ls rs:crumbs) =
+    (Directory parentName (ls ++ currentDir:rs), crumbs)
+
+
+
+createDirectory :: Name -> Filesystem -> Filesystem
+createDirectory subdirName (Directory dirName contents, crumbs) =
+    let subdir = Directory subdirName []
+    in (Directory dirName (subdir:contents), crumbs)
+
+createFile :: Filesystem -> Name -> Filesystem
+createFile (Directory dirName contents, crumbs) name =
+    let file = Entry $ TextFile name ""
+    in (Directory dirName (file:contents), crumbs)
+
+listContents :: Filesystem -> String
+listContents (state, _) = listContentsHelper 0 state
+    where
+        indentPerLevel = 4
+        whitespace = ' '
+        listContentsHelper :: Int -> FSItem -> String
+        listContentsHelper indent (Entry file) = replicate indent whitespace ++ "-" ++ fileName file ++ "\n"
+        listContentsHelper indent (Directory dirName contents) =
+                dirIndent ++ "-" ++ dirName ++ "\n"
+                ++ dirIndent ++ "|" ++ "\n"
+                ++ unlines (map (listContentsHelper $ indent+indentPerLevel) contents)
+                ++ "\n"
+            where
+                dirIndent = replicate indent whitespace
+
+
 
 getName::FSItem -> String
 getName (Entry textFile) = fileName textFile
 getName (Directory dirName _) = dirName
-
-
---   deriving (Show)
--- data File = Text TextFile | Directory String [File] deriving (Show)
-
-
--- newtype Crumb = String File deriving (Show)
--- type Breadcrumbs = [Crumb]
--- type Zipper = (File, Breadcrumbs)
-
--- simpleFS ::File
--- simpleFS = Directory "root"
---                 [Directory "lectures" [
---                     Text (TextFile "computer_systems_1" "some stuff"),
---                     Text (TextFile "NPP_5" "some stuff")
---                 ],
---                 Text (TextFile "README.md" "Some markdown")
---                 ]
-
--- listFS :: File -> String
--- listFS = listContentsHelper 0
---     where
---         listContentsHelper :: Int -> File -> String
---         listContentsHelper indent (Text textFile) = replicate indent '-' ++ fileName textFile
---         listContentsHelper indent (Directory dirName dirContent)
---             = replicate indent '-' ++ dirName
---                 ++ "\n" ++ replicate indent ' ' ++ "|\n"
---                 ++ unlines (map (listContentsHelper (indent+1)) dirContent)
-
--- printFileProperty :: File -> (File -> String) -> Path -> String
--- -- printFileName file (p:path) =  
--- printFileProperty filesystem printFunction [name] = printFunction $ searchInDir filesystem name
-
--- -- printFileContent :: File -> Path -> String
--- -- -- printFileName file (p:path) =  
--- -- printFileContent filesystem [fileName] = getName $ searchInDir filesystem fileName
-
--- searchInDir :: File -> String -> File
--- searchInDir (Directory _ files) name = searchInDirHelper files
---     where
---         searchInDirHelper::[File]-> File
---         searchInDirHelper [] = Text (TextFile "Null" "")
---         searchInDirHelper (x:xs) = if getName x == name then x else searchInDirHelper xs
-
--- getName :: File -> String
--- getName (Directory name _) = name
--- getName (Text textFile) = fileName textFile
