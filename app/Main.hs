@@ -17,6 +17,10 @@ main = do
   --         initialState
   -- putStrLn result
   -- putStrLn $ listContents finalState
-  let state = simpleFS
-  putStrLn $ listFS state
-  putStrLn $ printFileProperty state getName ["README.md"]
+  -- let state = simpleFS
+  -- putStrLn $ listFS state
+  -- putStrLn $ printFileProperty state getName ["README.md"]
+  let (state, crumbs) = navigateDown "lectures" (simpleFS, [])
+  putStrLn "Hello"
+  print state
+  print crumbs
