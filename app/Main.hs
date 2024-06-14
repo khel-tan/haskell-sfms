@@ -19,21 +19,24 @@ loop filesystem = do
   input <- getLine
   let args = words input
   print args
-  let (state, crumbs) = filesystem
-  case head args of
-    "exit" -> putStrLn "Exiting"
-    "cd" -> do
-      let newFilesystem = navigate (args!!1) filesystem
-      loop newFilesystem
-    "ls" -> do
-      putStrLn $ listContents filesystem
-      loop filesystem
-    "mkdir" -> do
-      let newFilesystem = createDirectory (args!!1) filesystem
-      loop newFilesystem
-    "touch" -> do
-      let newFilesystem = createFile filesystem (args!!1)
-      loop newFilesystem
-    _ -> do
-      putStrLn "Command not recognised. Try again..."
-      loop filesystem
+  -- let (state, crumbs) = filesystem
+  case args of
+    [] -> do
+      putStrLn "No command entered..."
+    (command:arguments) -> case command of
+      "exit" -> putStrLn "Exiting"
+      "cd" -> do
+        let newFilesystem = navigate (head arguments) filesystem
+        loop newFilesystem
+      "ls" -> do
+        putStrLn $ listContents filesystem
+        loop filesystem
+      "mkdir" -> do
+        let newFilesystem = createDirectory (head arguments) filesystem
+        loop newFilesystem
+      "touch" -> do
+        let newFilesystem = createFile filesystem (head arguments)
+        loop newFilesystem
+      _ -> do
+        putStrLn "Command not recognised. Try again..."
+        loop filesystem
