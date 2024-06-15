@@ -37,18 +37,25 @@ loop filesystem = do
             loop filesystem
           Just newFilesystem -> do
             loop newFilesystem
-      -- "cd" -> do
-      --   let newFilesystem = navigate (head arguments) filesystem
-      --   loop newFilesystem
+      "mkdir" -> do
+        let result = createDirectory (head arguments) filesystem
+        case result of
+          Nothing -> do
+            putStrLn "Unable to create directory!"
+            loop filesystem
+          Just newFilesystem -> do
+            loop newFilesystem
+      "create" -> do
+        let result = createFile (head arguments) filesystem
+        case result of
+          Nothing -> do
+            putStrLn "Unable to create directory!"
+            loop filesystem
+          Just newFilesystem -> do
+            loop newFilesystem
       "ls" -> do
         putStrLn $ listContents filesystem
         loop filesystem
-      -- "mkdir" -> do
-      --   let newFilesystem = createDirectory (head arguments) filesystem
-      --   loop newFilesystem
-      -- "touch" -> do
-      --   let newFilesystem = createFile filesystem (head arguments)
-      --   loop newFilesystem
       _ -> do
         putStrLn "Command not recognised. Try again..."
         loop filesystem

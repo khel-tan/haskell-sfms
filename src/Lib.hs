@@ -86,7 +86,7 @@ searchDirectory :: Name ->  Filesystem -> Maybe Filesystem
 searchDirectory _ (Entry _, _) = Nothing
 searchDirectory name (Directory dirName contents, crumbs) =
     let matches = filter isTarget contents
-     in
+     in 
         case matches of
             [] -> Nothing
             (file:_) -> let (ls, _:rs) = break isTarget contents
@@ -95,6 +95,16 @@ searchDirectory name (Directory dirName contents, crumbs) =
         isTarget (Entry textFile) = fileName textFile == name
         isTarget (Directory subdirName _) = subdirName == name
 
+-- CRUD and meta logic for files and directories
+createItem :: FSItem -> Filesystem -> Maybe Filesystem
+createItem _ (Entry _, _) = Nothing
+createItem item (Directory dirName contents, crumbs) = Just (Directory dirName (item:contents), crumbs)
+
+createFile :: FileName -> Filesystem -> Maybe Filesystem
+createFile name = createItem (Entry $ TextFile name "")
+
+createDirectory :: DirName -> Filesystem -> Maybe Filesystem
+createDirectory dirName = createItem (Directory dirName [])
 -- navigate :: DirName -> Filesystem -> Filesystem
 -- navigate name filesystem = case name of
 --     "" -> filesystem
