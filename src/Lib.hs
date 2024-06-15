@@ -18,17 +18,24 @@ data File = TextFile
   } deriving (Show)
 data FSItem = Entry File | Directory DirName [FSItem] deriving (Show)
 
-data FSCrumb = FSCrumb DirName [FSItem] [FSItem] deriving (Show)
+data FSCrumb = FSCrumb DirName [FSItem] [FSItem]
 type FSCrumbTrail = [FSCrumb]
 type Filesystem = (FSItem, FSCrumbTrail)
+
+instance Show FSCrumb where
+    show (FSCrumb dirName _ _) = dirName
 
 
 -- Utility functions
 getPath :: FSCrumbTrail -> String
 getPath [] = ""
-getPath crumbs = "/" ++ intercalate "/" (reverse (map crumbDirName crumbs))
-  where
-    crumbDirName (FSCrumb dirName _ _) = dirName
+getPath crumbs = intercalate "/" (reverse (map show crumbs)) ++ "/"
+
+printWorkingDirectory :: Filesystem -> String
+printWorkingDirectory (Entry _, _) = ""
+printWorkingDirectory (state, crumbs) =
+    let (Directory dirName _) = state
+    in '>' : getPath crumbs ++ dirName
 
 
 -- Test filesystems

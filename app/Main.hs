@@ -16,11 +16,10 @@ main = do
 
 loop :: Filesystem -> IO ()
 loop filesystem = do
-  putStrLn ">root"
+  putStrLn $ printWorkingDirectory filesystem
   input <- getLine
   let args = words input
-  print args
-  -- let (state, crumbs) = filesystem
+  
   case args of
     [] -> do
       putStrLn "No command entered..."
