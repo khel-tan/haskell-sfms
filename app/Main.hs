@@ -9,83 +9,46 @@ main = do
       filesystem =  (initialState, crumbs)
   loop filesystem
 
-checkForFailure :: Filesystem -> Maybe Filesystem -> Filesystem
-checkForFailure oldFS Nothing = oldFS
-checkForFailure _ (Just newFS) = newFS
+resolveFilesystemUpdate :: Filesystem -> Maybe Filesystem -> Filesystem
+resolveFilesystemUpdate oldFS Nothing = oldFS
+resolveFilesystemUpdate _ (Just newFS) = newFS
 
 loop :: Filesystem -> IO ()
 loop filesystem = do
   putStrLn $ printWorkingDirectory filesystem
   input <- getLine
-  let args = words input
-  
-  case args of
+  let inputList = words input
+  case inputList of
     [] -> do
       putStrLn "No command entered..."
       loop filesystem
-    (command:arguments) -> case command of
+    (command:args) -> case command of
       "exit" -> putStrLn "Exiting"
-      "search" -> do
-        let result = searchDirectory (head arguments) filesystem
-        print result
-        loop filesystem
-      "cd" -> do
-        let result = navigate filesystem (head arguments)
-        case result of
-          Nothing -> do
-            putStrLn "Path is invalid! Reverting back to previous state..."
-            loop filesystem
-          Just newFilesystem -> do
-            loop newFilesystem
-      "mkdir" -> do
-        let result = createDirectory (head arguments) filesystem
-        case result of
-          Nothing -> do
-            putStrLn "Unable to create directory!"
-            loop filesystem
-          Just newFilesystem -> do
-            loop newFilesystem
-      "create" -> do
-        let result = createFile (head arguments) filesystem
-        case result of
-          Nothing -> do
-            putStrLn "Unable to create directory!"
-            loop filesystem
-          Just newFilesystem -> do
-            loop newFilesystem
-      "delete" -> do
-        let result = deleteItem (head arguments) filesystem
-        case result of
-          Nothing -> do
-            putStrLn "Unable to delete!"
-            loop filesystem
-          Just newFilesystem -> do
-            loop newFilesystem
-      "read" -> do
-        let result = readItem (head arguments) filesystem
-        putStrLn result
-        loop filesystem
-      "update" -> do
-        let name = (head arguments)
-        if fileExists name filesystem
-          then do
-            putStrLn "Enter new content"
-            newContent <- getLine
-            let result = updateFile name newContent filesystem
-            case result of
-              Nothing -> loop filesystem
-              Just newFilesystem -> loop newFilesystem
-        else do
-          putStrLn "File does not exist!"
-          loop filesystem
-      "ls" -> do
-        putStrLn $ listContents filesystem
-        loop filesystem
-      "cp" -> do
-        let newFilesystem = copy filesystem (head arguments, last arguments)
-        -- putStrLn $ listContents $ checkForFailure filesystem newFilesystem
-        print $ checkForFailure filesystem newFilesystem
-        loop $ checkForFailure filesystem newFilesystem
       _ -> do
-        putStrLn "Command not recognised. Try again..."
-        loop filesystem
+        (newFilesystem, output ) <- handleCommand filesystem command args
+        putStrLn output
+        loop $ resolveFilesystemUpdate filesystem newFilesystem
+
+handleCommand :: Filesystem -> String -> [String] -> IO (Maybe Filesystem, String)
+handleCommand filesystem command args =
+  case command of
+      "cd" -> return (navigate filesystem $ head args, "Switching directory...")
+      "search" -> return (searchDirectory (head args) filesystem, "Searching...")
+      "mkdir" -> return (createDirectory (head args) filesystem, "Creating directory...")
+      
+      "create" -> return (createFile (head args) filesystem, "Creating file...")
+      "read" -> return (Just filesystem, readItem (head args) filesystem)
+      "update" -> if fileExists name filesystem
+                  then do
+                      putStrLn "Please enter new content"
+                      newContent <- getLine
+                      return (updateFile name newContent filesystem, "Updating...")
+                  else return (Just filesystem, "File not found...")
+                  where
+                    name = head args
+      "delete" -> return (deleteItem (head args) filesystem, "Deleting...")
+      "ls" -> return (Just filesystem, listContents filesystem)
+      "cp" -> return (copy filesystem (head args, last args), "Copying...")
+      
+      _ -> return (Just filesystem, "Command invalid. Try again...")
+

@@ -11,12 +11,15 @@ type Name = String
 type Content = String
 type Path = String
 
+-- Only one textfile for now
+-- TODO: Add creation and modification dates
 data File = TextFile
     { fileName :: Name,
     fileContent :: Content
   } deriving (Show)
 data FSItem = Entry File | Directory Name [FSItem] deriving (Show)
 
+-- Necessary definitions for zipper
 data FSCrumb = FSCrumb Name [FSItem] [FSItem]
 type FSCrumbTrail = [FSCrumb]
 type Filesystem = (FSItem, FSCrumbTrail)
@@ -34,7 +37,7 @@ printWorkingDirectory :: Filesystem -> String
 printWorkingDirectory (Entry _, _) = ""
 printWorkingDirectory (Directory dirName _, crumbs) = ">>> " ++ getPath crumbs ++ dirName
 
--- Function to list the contents of a filesystem with indentation for readability
+-- Function to list the contents of a filesystem with indentation
 listContents :: Filesystem -> String
 listContents (rootItem, _) = listContentsHelper 0 rootItem
   where
