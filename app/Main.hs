@@ -1,7 +1,6 @@
 module Main (main) where
 
 import Lib
-import Lib (listContents)
 
 main :: IO ()
 main = do

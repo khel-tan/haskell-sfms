@@ -4,21 +4,20 @@ module Lib
 where
 
 import Data.List (intercalate)
+import Data.Maybe (isJust)
 
 -- Type definitions
 type Name = String
-type FileName = Name
-type DirName = Name
 type Content = String
 type Path = String
 
 data File = TextFile
-    { fileName :: FileName,
+    { fileName :: Name,
     fileContent :: Content
   } deriving (Show)
-data FSItem = Entry File | Directory DirName [FSItem] deriving (Show)
+data FSItem = Entry File | Directory Name [FSItem] deriving (Show)
 
-data FSCrumb = FSCrumb DirName [FSItem] [FSItem]
+data FSCrumb = FSCrumb Name [FSItem] [FSItem]
 type FSCrumbTrail = [FSCrumb]
 type Filesystem = (FSItem, FSCrumbTrail)
 
@@ -26,23 +25,30 @@ instance Show FSCrumb where
     show (FSCrumb dirName _ _) = dirName
 
 
--- Utility functions
+--Display functions
 getPath :: FSCrumbTrail -> Path
 getPath [] = ""
-getPath crumbs = intercalate "/" (reverse (map show crumbs)) ++ "/"
+getPath crumbs = (intercalate "/" . map show . reverse $ crumbs) ++ "/"
 
 printWorkingDirectory :: Filesystem -> String
 printWorkingDirectory (Entry _, _) = ""
-printWorkingDirectory (state, crumbs) =
-    let (Directory dirName _) = state
-    in '>' : getPath crumbs ++ dirName
+printWorkingDirectory (Directory dirName _, crumbs) = ">>> " ++ getPath crumbs ++ dirName
+
+-- Function to list the contents of a filesystem with indentation for readability
+listContents :: Filesystem -> String
+listContents (rootItem, _) = listContentsHelper 0 rootItem
+  where
+    indentPerLevel = 4 -- Number of spaces for each indentation level
+    listContentsHelper :: Int -> FSItem -> String
+    listContentsHelper indent (Entry file) =
+        replicate indent ' ' ++ "- " ++ fileName file ++ "\n"
+    listContentsHelper indent (Directory dirName contents) =
+        replicate indent ' ' ++ "- " ++ dirName ++ "/\n" ++
+        concatMap (listContentsHelper (indent + indentPerLevel)) contents
+-- Utility functions
 
 fileExists :: Name -> Filesystem -> Bool
-fileExists name filesystem = let searchResults = searchDirectory name filesystem in 
-    case searchResults of
-    Nothing -> False
-    Just (Directory _ _, _) -> False
-    Just (Entry _, _) -> True
+fileExists name = isJust . searchDirectory name
 
 -- Test filesystems
 simpleFS ::FSItem
@@ -75,42 +81,42 @@ navigate path filesystem =
             _ -> rest
 
 
-navigateDown :: DirName -> Filesystem -> Maybe Filesystem
+navigateDown :: Name -> Filesystem -> Maybe Filesystem
 navigateDown dirName filesystem = case searchDirectory dirName filesystem of
     Just (directory, crumbs) -> Just (directory, crumbs)
     _ -> Nothing
 
 navigateUp :: Filesystem -> Filesystem
-navigateUp (currentDir, []) = (currentDir, [])
 navigateUp (currentDir, FSCrumb parentName ls rs:crumbs) =
     (Directory parentName (ls ++ currentDir:rs), crumbs)
+navigateUp filesystem = filesystem
 
 navigateToRoot :: Filesystem -> Filesystem
 navigateToRoot (currentDir, []) = (currentDir, [])
 navigateToRoot filesystem = navigateToRoot $ navigateUp filesystem
 
-searchDirectory :: Name ->  Filesystem -> Maybe Filesystem
+-- Search
+
+searchDirectory :: Name -> Filesystem -> Maybe Filesystem
 searchDirectory _ (Entry _, _) = Nothing
-searchDirectory name (Directory dirName contents, crumbs) =
-    let matches = filter isTarget contents
-     in 
-        case matches of
-            [] -> Nothing
-            (file:_) -> let (ls, _:rs) = break isTarget contents
-                        in Just (file, FSCrumb dirName ls rs:crumbs)
-    where
-        isTarget (Entry textFile) = fileName textFile == name
-        isTarget (Directory subdirName _) = subdirName == name
+searchDirectory targetName (Directory dirName contents, crumbs) =
+    case break isTarget contents of
+        (_, []) -> Nothing  -- No match found
+        (left, item:right) -> Just (item, FSCrumb dirName left right : crumbs)
+  where
+    isTarget :: FSItem -> Bool
+    isTarget (Entry file) = fileName file == targetName
+    isTarget (Directory subdirName _) = subdirName == targetName
 
 -- CRUD and meta logic for files and directories
 createItem :: FSItem -> Filesystem -> Maybe Filesystem
 createItem _ (Entry _, _) = Nothing
 createItem item (Directory dirName contents, crumbs) = Just (Directory dirName (item:contents), crumbs)
 
-createFile :: FileName -> Filesystem -> Maybe Filesystem
+createFile :: Name -> Filesystem -> Maybe Filesystem
 createFile name = createItem (Entry $ TextFile name "")
 
-createDirectory :: DirName -> Filesystem -> Maybe Filesystem
+createDirectory :: Name -> Filesystem -> Maybe Filesystem
 createDirectory dirName = createItem (Directory dirName [])
 
 deleteItem :: Name -> Filesystem -> Maybe Filesystem
@@ -153,17 +159,3 @@ copy filesystem (srcPath, destPath) = do
                                             (_, crumbs) = filesystem
 
 
-listContents :: Filesystem -> String
-listContents (state, _) = listContentsHelper 0 state
-    where
-        indentPerLevel = 4
-        whitespace = ' '
-        listContentsHelper :: Int -> FSItem -> String
-        listContentsHelper indent (Entry file) = replicate indent whitespace ++ "-" ++ fileName file ++ "\n"
-        listContentsHelper indent (Directory dirName contents) =
-                dirIndent ++ "-" ++ dirName ++ "\n"
-                ++ dirIndent ++ "|" ++ "\n"
-                ++ unlines (map (listContentsHelper $ indent+indentPerLevel) contents)
-                ++ "\n"
-            where
-                dirIndent = replicate indent whitespace
