@@ -62,18 +62,14 @@ simpleFS = Directory "root"
 
 
 -- Navigation
-navigate :: Path -> Filesystem -> Maybe Filesystem
-navigate "" filesystem = Just filesystem
-navigate path filesystem =
+navigate :: Filesystem -> Path -> Maybe Filesystem
+navigate filesystem "" = Just filesystem
+navigate filesystem path =
     case targetDir of
-        ".." -> navigate cleanRest $ navigateUp filesystem 
-        "." -> navigate cleanRest filesystem
-        "root" -> navigate cleanRest $ navigateToRoot filesystem
-        _ -> do
-            let target = navigateDown targetDir filesystem
-            case target of
-                Nothing -> Nothing
-                Just newFilesystem -> navigate cleanRest newFilesystem
+        ".." -> navigate (navigateUp filesystem) cleanRest 
+        "." -> navigate filesystem cleanRest
+        "root" -> navigate (navigateToRoot filesystem) cleanRest 
+        _ -> navigateDown targetDir filesystem >>=  (`navigate` cleanRest)
     where
         (targetDir, rest) = break ('/'==) path
         cleanRest = case rest of
@@ -82,9 +78,7 @@ navigate path filesystem =
 
 
 navigateDown :: Name -> Filesystem -> Maybe Filesystem
-navigateDown dirName filesystem = case searchDirectory dirName filesystem of
-    Just (directory, crumbs) -> Just (directory, crumbs)
-    _ -> Nothing
+navigateDown = searchDirectory
 
 navigateUp :: Filesystem -> Filesystem
 navigateUp (currentDir, FSCrumb parentName ls rs:crumbs) =
@@ -101,7 +95,7 @@ searchDirectory :: Name -> Filesystem -> Maybe Filesystem
 searchDirectory _ (Entry _, _) = Nothing
 searchDirectory targetName (Directory dirName contents, crumbs) =
     case break isTarget contents of
-        (_, []) -> Nothing  -- No match found
+        (_, []) -> Nothing
         (left, item:right) -> Just (item, FSCrumb dirName left right : crumbs)
   where
     isTarget :: FSItem -> Bool
@@ -120,41 +114,37 @@ createDirectory :: Name -> Filesystem -> Maybe Filesystem
 createDirectory dirName = createItem (Directory dirName [])
 
 deleteItem :: Name -> Filesystem -> Maybe Filesystem
-deleteItem name filesystem = case focus of
+deleteItem name filesystem = case searchDirectory name filesystem of
             Nothing -> Just filesystem
-            Just (_, FSCrumb dirName ls rs:crumbs) -> Just (Directory dirName (ls++rs), crumbs)
+            Just (_, FSCrumb dirName ls rs:crumbs) -> Just $ navigateUp (Directory dirName (ls++rs), crumbs)
             _ -> Nothing
-    where
-        focus = searchDirectory name filesystem
 
 readItem :: Name -> Filesystem -> String
-readItem name filesystem = case focus of
+readItem name filesystem = case searchDirectory name filesystem of
         Nothing -> ""
         Just (Entry file, _) -> fileContent file
         Just (Directory _ _, _) -> ""
-    where
-        focus = searchDirectory name filesystem
 
 updateFile :: Name -> Content -> Filesystem -> Maybe Filesystem
-updateFile name content filesystem = let item = searchDirectory name filesystem in
-    case item of
+updateFile name content filesystem = case searchDirectory name filesystem of
         Nothing -> Nothing
         Just (Directory _ _, _) -> Just filesystem
-        Just (Entry _, crumbs) -> Just $ navigateUp (Entry $ TextFile name content, crumbs)
+        Just (Entry oldFile, crumbs) -> 
+            Just $ navigateUp (Entry oldFile {fileContent = content}, crumbs)
 
 copy :: Filesystem -> (Path, Path) -> Maybe Filesystem
 copy filesystem (srcPath, destPath) = do
     -- Navigate to the source file
-    (srcFile, _) <- navigate srcPath filesystem
+    (srcFile, _) <- navigate filesystem srcPath
     -- Navigate to the destination path
-    (destFile, destCrumbs) <- navigate destPath filesystem
+    (destFile, destCrumbs) <- navigate filesystem destPath
     -- Ensure the destination is a directory
     case destFile of
         Entry _ -> Nothing
         Directory dirName contents -> let newContents = srcFile : contents
                                           newDir = Directory dirName newContents
                                           newFilesystem = navigateToRoot (newDir, destCrumbs)
-                                        in navigate (getPath crumbs) newFilesystem
+                                        in navigate newFilesystem (getPath crumbs)
                                         where
                                             (_, crumbs) = filesystem
 

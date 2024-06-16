@@ -30,7 +30,7 @@ loop filesystem = do
         print result
         loop filesystem
       "cd" -> do
-        let result = navigate (head arguments) filesystem
+        let result = navigate filesystem (head arguments)
         case result of
           Nothing -> do
             putStrLn "Path is invalid! Reverting back to previous state..."
