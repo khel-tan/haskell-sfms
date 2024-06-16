@@ -27,7 +27,7 @@ instance Show FSCrumb where
 
 
 -- Utility functions
-getPath :: FSCrumbTrail -> String
+getPath :: FSCrumbTrail -> Path
 getPath [] = ""
 getPath crumbs = intercalate "/" (reverse (map show crumbs)) ++ "/"
 
@@ -136,42 +136,22 @@ updateFile name content filesystem = let item = searchDirectory name filesystem 
         Just (Directory _ _, _) -> Just filesystem
         Just (Entry _, crumbs) -> Just $ navigateUp (Entry $ TextFile name content, crumbs)
 
--- navigate :: DirName -> Filesystem -> Filesystem
--- navigate name filesystem = case name of
---     "" -> filesystem
---     ".." -> navigateUp filesystem
---     _ -> navigateDown name filesystem
+copy :: Filesystem -> (Path, Path) -> Maybe Filesystem
+copy filesystem (srcPath, destPath) = do
+    -- Navigate to the source file
+    (srcFile, _) <- navigate srcPath filesystem
+    -- Navigate to the destination path
+    (destFile, destCrumbs) <- navigate destPath filesystem
+    -- Ensure the destination is a directory
+    case destFile of
+        Entry _ -> Nothing
+        Directory dirName contents -> let newContents = srcFile : contents
+                                          newDir = Directory dirName newContents
+                                          newFilesystem = navigateToRoot (newDir, destCrumbs)
+                                        in navigate (getPath crumbs) newFilesystem
+                                        where
+                                            (_, crumbs) = filesystem
 
-
--- navigateDown :: DirName -> Filesystem -> Filesystem
--- navigateDown name (Directory dirName contents, crumbs) =
---     let (ls, rest) = break isNamed contents
---     in case rest of
---         (target:rs) -> (target, FSCrumb dirName ls rs:crumbs)
---         [] -> error $ "Directory or file named " ++ name ++ " not found in " ++ dirName
---     where
---         isNamed (Entry textFile) = fileName textFile == name
---         isNamed (Directory subdirName _) = subdirName == name
--- navigateDown _ _ = error "Cannot navigate down from a file"
-
--- navigateUp :: Filesystem -> Filesystem
--- navigateUp (currentDir, []) = (currentDir, [])
--- navigateUp (currentDir, FSCrumb parentName ls rs:crumbs) =
---     (Directory parentName (ls ++ currentDir:rs), crumbs)
-
-
-
--- createDirectory :: DirName -> Filesystem -> Filesystem 
--- createDirectory subdirName (Directory dirName contents, crumbs) =
---     let subdir = Directory subdirName []
---     in (Directory dirName (subdir:contents), crumbs)
--- createDirectory _ _ = error "Cannot create a directory when we are at a file"
-
--- createFile :: Filesystem -> FileName -> Filesystem
--- createFile (Directory dirName contents, crumbs) name =
---     let file = Entry $ TextFile name ""
---     in (Directory dirName (file:contents), crumbs)
--- createFile _ _ = error "Cannot create a file when we are at a file"
 
 listContents :: Filesystem -> String
 listContents (state, _) = listContentsHelper 0 state
@@ -187,9 +167,3 @@ listContents (state, _) = listContentsHelper 0 state
                 ++ "\n"
             where
                 dirIndent = replicate indent whitespace
-
-
-
--- getName::FSItem -> String
--- getName (Entry textFile) = fileName textFile
--- getName (Directory dirName _) = dirName

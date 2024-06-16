@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Lib
+import Lib (listContents)
 
 main :: IO ()
 main = do
@@ -8,6 +9,10 @@ main = do
       crumbs = []
       filesystem =  (initialState, crumbs)
   loop filesystem
+
+checkForFailure :: Filesystem -> Maybe Filesystem -> Filesystem
+checkForFailure oldFS Nothing = oldFS
+checkForFailure _ (Just newFS) = newFS
 
 loop :: Filesystem -> IO ()
 loop filesystem = do
@@ -18,6 +23,7 @@ loop filesystem = do
   case args of
     [] -> do
       putStrLn "No command entered..."
+      loop filesystem
     (command:arguments) -> case command of
       "exit" -> putStrLn "Exiting"
       "search" -> do
@@ -76,6 +82,11 @@ loop filesystem = do
       "ls" -> do
         putStrLn $ listContents filesystem
         loop filesystem
+      "cp" -> do
+        let newFilesystem = copy filesystem (head arguments, last arguments)
+        -- putStrLn $ listContents $ checkForFailure filesystem newFilesystem
+        print $ checkForFailure filesystem newFilesystem
+        loop $ checkForFailure filesystem newFilesystem
       _ -> do
         putStrLn "Command not recognised. Try again..."
         loop filesystem
