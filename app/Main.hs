@@ -1,11 +1,6 @@
 module Main (main) where
 
--- import Control.Monad.State (runState)
 import Lib
-
-
--- import Lib (printFileProperty)
--- import Lib (listFS)
 
 main :: IO ()
 main = do
@@ -53,6 +48,31 @@ loop filesystem = do
             loop filesystem
           Just newFilesystem -> do
             loop newFilesystem
+      "delete" -> do
+        let result = deleteItem (head arguments) filesystem
+        case result of
+          Nothing -> do
+            putStrLn "Unable to delete!"
+            loop filesystem
+          Just newFilesystem -> do
+            loop newFilesystem
+      "read" -> do
+        let result = readItem (head arguments) filesystem
+        putStrLn result
+        loop filesystem
+      "update" -> do
+        let name = (head arguments)
+        if fileExists name filesystem
+          then do
+            putStrLn "Enter new content"
+            newContent <- getLine
+            let result = updateFile name newContent filesystem
+            case result of
+              Nothing -> loop filesystem
+              Just newFilesystem -> loop newFilesystem
+        else do
+          putStrLn "File does not exist!"
+          loop filesystem
       "ls" -> do
         putStrLn $ listContents filesystem
         loop filesystem

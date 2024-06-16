@@ -37,6 +37,12 @@ printWorkingDirectory (state, crumbs) =
     let (Directory dirName _) = state
     in '>' : getPath crumbs ++ dirName
 
+fileExists :: Name -> Filesystem -> Bool
+fileExists name filesystem = let searchResults = searchDirectory name filesystem in 
+    case searchResults of
+    Nothing -> False
+    Just (Directory _ _, _) -> False
+    Just (Entry _, _) -> True
 
 -- Test filesystems
 simpleFS ::FSItem
@@ -47,6 +53,7 @@ simpleFS = Directory "root"
                 ],
                     Entry $ TextFile "README.md" "Some markdown"
                 ]
+
 
 -- Navigation
 navigate :: Path -> Filesystem -> Maybe Filesystem
@@ -105,6 +112,30 @@ createFile name = createItem (Entry $ TextFile name "")
 
 createDirectory :: DirName -> Filesystem -> Maybe Filesystem
 createDirectory dirName = createItem (Directory dirName [])
+
+deleteItem :: Name -> Filesystem -> Maybe Filesystem
+deleteItem name filesystem = case focus of
+            Nothing -> Just filesystem
+            Just (_, FSCrumb dirName ls rs:crumbs) -> Just (Directory dirName (ls++rs), crumbs)
+            _ -> Nothing
+    where
+        focus = searchDirectory name filesystem
+
+readItem :: Name -> Filesystem -> String
+readItem name filesystem = case focus of
+        Nothing -> ""
+        Just (Entry file, _) -> fileContent file
+        Just (Directory _ _, _) -> ""
+    where
+        focus = searchDirectory name filesystem
+
+updateFile :: Name -> Content -> Filesystem -> Maybe Filesystem
+updateFile name content filesystem = let item = searchDirectory name filesystem in
+    case item of
+        Nothing -> Nothing
+        Just (Directory _ _, _) -> Just filesystem
+        Just (Entry _, crumbs) -> Just $ navigateUp (Entry $ TextFile name content, crumbs)
+
 -- navigate :: DirName -> Filesystem -> Filesystem
 -- navigate name filesystem = case name of
 --     "" -> filesystem
