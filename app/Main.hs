@@ -19,7 +19,6 @@ loop filesystem = do
   putStr $ printWorkingDirectory filesystem
   hFlush stdout
   input <- getLine
-  putStrLn ""
   let inputList = words input
   case inputList of
     [] -> do
@@ -37,6 +36,8 @@ handleCommand filesystem command args =
   case (command, args) of
       ("cd", []) -> return (navigate filesystem "root", "Returning to root...")
       ("cd", [path]) -> return (navigate filesystem path, "Switching directory...")
+
+      ("searchAll", [target]) -> return (searchRecursive target $ navigateToRoot  filesystem, "Searching all...")
       ("search", [target]) -> return (searchDirectory target filesystem, "Searching...")
       ("mkdir", [dirName]) -> return (createDirectory dirName filesystem, "Creating directory...")
       

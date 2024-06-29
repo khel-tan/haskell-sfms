@@ -3,8 +3,8 @@ module Lib
   )
 where
 
-import Data.List (intercalate)
-import Data.Maybe (isJust)
+import Data.List (intercalate, find)
+import Data.Maybe (isJust, fromJust, catMaybes)
 
 -- Type definitions
 type Name = String
@@ -104,6 +104,18 @@ searchDirectory targetName (Directory dirName contents, crumbs) =
     isTarget :: FSItem -> Bool
     isTarget (Entry file) = fileName file == targetName
     isTarget (Directory subdirName _) = subdirName == targetName
+
+searchRecursive :: Name -> Filesystem -> Maybe Filesystem
+searchRecursive _ (Entry _, _) = Nothing
+searchRecursive targetName dir =
+    let (Directory dirName contents, crumbs) = dir in
+        case searchDirectory targetName dir of
+            Nothing -> fromJust $ find isJust (map (searchRecursive targetName) $ catMaybes (map (go dir) contents))
+            result -> result
+            where
+                go :: Filesystem -> FSItem -> Maybe Filesystem
+                go fs (Entry file) = navigateDown (fileName file) fs
+                go fs (Directory dirName _) = navigateDown dirName fs
 
 -- CRUD and meta logic for files and directories
 createItem :: FSItem -> Filesystem -> Maybe Filesystem
