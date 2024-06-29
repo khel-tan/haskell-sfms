@@ -35,7 +35,7 @@ getPath crumbs = (intercalate "/" . map show . reverse $ crumbs) ++ "/"
 
 printWorkingDirectory :: Filesystem -> String
 printWorkingDirectory (Entry _, _) = ""
-printWorkingDirectory (Directory dirName _, crumbs) = ">>> " ++ getPath crumbs ++ dirName
+printWorkingDirectory (Directory dirName _, crumbs) = getPath crumbs ++ dirName ++ ">"
 
 -- Function to list the contents of a filesystem with indentation
 listContents :: Filesystem -> String

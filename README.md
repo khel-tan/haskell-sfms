@@ -20,6 +20,10 @@ A virtual file management system in the spirit of UNIX/Linux written in Haskell
     - cd works on absolute and relative paths
 - Basic search by name within the current directory
 - CRUD commands on files
+  - create
+  - cat (read)
+  - update
+  - delete
 
 ## Intended Features
 - Search by substrings in names or content

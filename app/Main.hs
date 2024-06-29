@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Lib
+import System.IO (hFlush, stdout)
 
 main :: IO ()
 main = do
@@ -15,8 +16,10 @@ resolveFilesystemUpdate _ (Just newFS) = newFS
 
 loop :: Filesystem -> IO ()
 loop filesystem = do
-  putStrLn $ printWorkingDirectory filesystem
+  putStr $ printWorkingDirectory filesystem
+  hFlush stdout
   input <- getLine
+  putStrLn ""
   let inputList = words input
   case inputList of
     [] -> do
@@ -37,7 +40,7 @@ handleCommand filesystem command args =
       "mkdir" -> return (createDirectory (head args) filesystem, "Creating directory...")
       
       "create" -> return (createFile (head args) filesystem, "Creating file...")
-      "read" -> return (Just filesystem, readItem (head args) filesystem)
+      "cat" -> return (Just filesystem, readItem (head args) filesystem)
       "update" -> if fileExists name filesystem
                   then do
                       putStrLn "Please enter new content"
@@ -46,7 +49,7 @@ handleCommand filesystem command args =
                   else return (Just filesystem, "File not found...")
                   where
                     name = head args
-      "delete" -> return (deleteItem (head args) filesystem, "Deleting...")
+      "rm" -> return (deleteItem (head args) filesystem, "Deleting...")
       "ls" -> return (Just filesystem, listContents filesystem)
       "cp" -> return (copy filesystem (head args, last args), "Copying...")
       
