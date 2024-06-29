@@ -34,24 +34,23 @@ loop filesystem = do
 
 handleCommand :: Filesystem -> String -> [String] -> IO (Maybe Filesystem, String)
 handleCommand filesystem command args =
-  case command of
-      "cd" -> return (navigate filesystem $ head args, "Switching directory...")
-      "search" -> return (searchDirectory (head args) filesystem, "Searching...")
-      "mkdir" -> return (createDirectory (head args) filesystem, "Creating directory...")
+  case (command, args) of
+      ("cd", []) -> return (navigate filesystem "root", "Returning to root...")
+      ("cd", [path]) -> return (navigate filesystem path, "Switching directory...")
+      ("search", [target]) -> return (searchDirectory target filesystem, "Searching...")
+      ("mkdir", [dirName]) -> return (createDirectory dirName filesystem, "Creating directory...")
       
-      "create" -> return (createFile (head args) filesystem, "Creating file...")
-      "cat" -> return (Just filesystem, readItem (head args) filesystem)
-      "update" -> if fileExists name filesystem
+      ("create", [name]) -> return (createFile name filesystem, "Creating file...")
+      ("cat", [itemName]) -> return (Just filesystem, readItem itemName filesystem)
+      ("update", [name]) -> if fileExists name filesystem
                   then do
                       putStrLn "Please enter new content"
                       newContent <- getLine
                       return (updateFile name newContent filesystem, "Updating...")
                   else return (Just filesystem, "File not found...")
-                  where
-                    name = head args
-      "rm" -> return (deleteItem (head args) filesystem, "Deleting...")
-      "ls" -> return (Just filesystem, listContents filesystem)
-      "cp" -> return (copy filesystem (head args, last args), "Copying...")
+      ("rm", [itemName]) -> return (deleteItem itemName filesystem, "Deleting...")
+      ("ls", []) -> return (Just filesystem, listContents filesystem)
+      ("cp", [src, dest]) -> return (copy filesystem (src, dest), "Copying...")
       
       _ -> return (Just filesystem, "Command invalid. Try again...")
 
