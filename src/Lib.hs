@@ -4,7 +4,7 @@ module Lib
 where
 
 import Data.List (intercalate, find)
-import Data.Maybe (isJust, fromJust, catMaybes)
+
 
 -- Type definitions
 type Name = String
@@ -34,8 +34,8 @@ getPath [] = ""
 getPath crumbs = (intercalate "/" . map show . reverse $ crumbs) ++ "/"
 
 printWorkingDirectory :: Filesystem -> String
-printWorkingDirectory (Entry _, _) = ""
-printWorkingDirectory (Directory dirName _, crumbs) = getPath crumbs ++ dirName ++ ">"
+printWorkingDirectory (Directory dirName _, crumbs) = getPath crumbs ++ dirName ++ " >"
+printWorkingDirectory filesystem = printWorkingDirectory $ navigateUp filesystem
 
 -- Function to list the contents of a filesystem with indentation
 listContents :: Filesystem -> String
@@ -48,10 +48,12 @@ listContents (rootItem, _) = listContentsHelper 0 rootItem
     listContentsHelper indent (Directory dirName contents) =
         replicate indent ' ' ++ "- " ++ dirName ++ "/\n" ++
         concatMap (listContentsHelper (indent + indentPerLevel)) contents
+
+
 -- Utility functions
 
-fileExists :: Name -> Filesystem -> Bool
-fileExists name = isJust . searchDirectory name
+-- fileExists :: Name -> Filesystem -> Bool
+-- fileExists name = isJust . searchDirectory name
 
 -- Test filesystems
 simpleFS ::FSItem
@@ -65,23 +67,25 @@ simpleFS = Directory "root"
 
 
 -- Navigation
-navigate :: Filesystem -> Path -> Maybe Filesystem
-navigate filesystem "" = Just filesystem
+navigate :: Filesystem -> Path -> Either String Filesystem
+navigate filesystem "" = Right filesystem
 navigate filesystem path =
     case targetDir of
-        ".." -> navigate (navigateUp filesystem) cleanRest 
+        ".." -> navigate (navigateUp filesystem) cleanRest
         "." -> navigate filesystem cleanRest
-        "root" -> navigate (navigateToRoot filesystem) cleanRest 
-        _ -> navigateDown targetDir filesystem >>=  (`navigate` cleanRest)
+        "root" -> navigate (navigateToRoot filesystem) cleanRest
+        _ -> navigateDown filesystem targetDir >>=  (`navigate` cleanRest)
     where
         (targetDir, rest) = break ('/'==) path
         cleanRest = case rest of
             '/' : xs -> xs
             _ -> rest
-
-
-navigateDown :: Name -> Filesystem -> Maybe Filesystem
-navigateDown = searchDirectory
+navigateDown :: Filesystem -> Name -> Either String Filesystem
+navigateDown filesystem name = 
+    let result = searchDirectory filesystem name
+    in case result of
+        Left _ -> Left $ printWorkingDirectory filesystem ++ name ++ " is not a valid path."
+        _ -> result
 
 navigateUp :: Filesystem -> Filesystem
 navigateUp (currentDir, FSCrumb parentName ls rs:crumbs) =
@@ -94,73 +98,78 @@ navigateToRoot filesystem = navigateToRoot $ navigateUp filesystem
 
 -- Search
 
-searchDirectory :: Name -> Filesystem -> Maybe Filesystem
-searchDirectory _ (Entry _, _) = Nothing
-searchDirectory targetName (Directory dirName contents, crumbs) =
+searchDirectory :: Filesystem -> Name -> Either String Filesystem
+searchDirectory (Entry _, _) _ = 
+    Left "Cannot search for a file when we are focused on a file!"
+searchDirectory (Directory dirName contents, crumbs) targetName =
     case break isTarget contents of
-        (_, []) -> Nothing
-        (left, item:right) -> Just (item, FSCrumb dirName left right : crumbs)
+        (_, []) -> Left "File not found."
+        (left, item:right) -> Right (item, FSCrumb dirName left right : crumbs)
   where
     isTarget :: FSItem -> Bool
     isTarget (Entry file) = fileName file == targetName
     isTarget (Directory subdirName _) = subdirName == targetName
 
-searchRecursive :: Name -> Filesystem -> Maybe Filesystem
-searchRecursive _ (Entry _, _) = Nothing
-searchRecursive targetName dir =
-    let (Directory dirName contents, crumbs) = dir in
-        case searchDirectory targetName dir of
-            Nothing -> fromJust $ find isJust (map (searchRecursive targetName) $ catMaybes (map (go dir) contents))
-            result -> result
-            where
-                go :: Filesystem -> FSItem -> Maybe Filesystem
-                go fs (Entry file) = navigateDown (fileName file) fs
-                go fs (Directory dirName _) = navigateDown dirName fs
+-- searchRecursive :: Name -> Filesystem -> Maybe Filesystem
+-- searchRecursive _ (Entry _, _) = Nothing
+-- searchRecursive targetName dir =
+--     let (Directory dirName contents, crumbs) = dir in
+--         case searchDirectory targetName dir of
+--             Nothing -> fromJust $ find isJust (map (searchRecursive targetName) $ mapMaybe (go dir) contents)
+--             result -> result
+--             where
+--                 go :: Filesystem -> FSItem -> Maybe Filesystem
+--                 go fs (Entry file) = navigateDown (fileName file) fs
+--                 go fs (Directory dirName _) = navigateDown dirName fs
 
 -- CRUD and meta logic for files and directories
-createItem :: FSItem -> Filesystem -> Maybe Filesystem
-createItem _ (Entry _, _) = Nothing
-createItem item (Directory dirName contents, crumbs) = Just (Directory dirName (item:contents), crumbs)
+createItem :: Filesystem -> FSItem -> Either String Filesystem
+createItem (Entry _, _) _ = 
+    Left "Cannot create an item inside a file. This action is legal only inside a directory!"
+createItem (Directory dirName contents, crumbs) item = 
+    Right (Directory dirName (item:contents), crumbs)
 
-createFile :: Name -> Filesystem -> Maybe Filesystem
-createFile name = createItem (Entry $ TextFile name "")
+createFile :: Filesystem -> Name -> Either String Filesystem
+createFile filesystem name = createItem filesystem (Entry $ TextFile name "")
 
-createDirectory :: Name -> Filesystem -> Maybe Filesystem
-createDirectory dirName = createItem (Directory dirName [])
+createDirectory :: Filesystem -> Name -> Either String Filesystem
+createDirectory filesystem dirName = createItem filesystem (Directory dirName [])
 
-deleteItem :: Name -> Filesystem -> Maybe Filesystem
-deleteItem name filesystem = case searchDirectory name filesystem of
-            Nothing -> Just filesystem
-            Just (_, FSCrumb dirName ls rs:crumbs) -> Just $ navigateUp (Directory dirName (ls++rs), crumbs)
-            _ -> Nothing
+-- deleteItem :: Name -> Filesystem -> Maybe Filesystem
+-- deleteItem name filesystem = case searchDirectory name filesystem of
+--             Nothing -> Just filesystem
+--             Just (_, FSCrumb dirName ls rs:crumbs) -> Just $ navigateUp (Directory dirName (ls++rs), crumbs)
+--             _ -> Nothing
 
-readItem :: Name -> Filesystem -> String
-readItem name filesystem = case searchDirectory name filesystem of
-        Nothing -> ""
-        Just (Entry file, _) -> fileContent file
-        Just (Directory _ _, _) -> ""
+readItem :: Filesystem -> Name -> Either String String
+readItem filesystem name = 
+    let item = searchDirectory filesystem name
+    in case item of
+        Right (Entry file, _) -> Right $ fileContent file
+        Right (Directory _ _, _) -> Left $ name ++ " is a directory."
+        Left errorMsg -> Left errorMsg
 
-updateFile :: Name -> Content -> Filesystem -> Maybe Filesystem
-updateFile name content filesystem = case searchDirectory name filesystem of
-        Nothing -> Nothing
-        Just (Directory _ _, _) -> Just filesystem
-        Just (Entry oldFile, crumbs) -> 
-            Just $ navigateUp (Entry oldFile {fileContent = content}, crumbs)
+-- updateFile :: Name -> Content -> Filesystem -> Maybe Filesystem
+-- updateFile name content filesystem = case searchDirectory name filesystem of
+--         Nothing -> Nothing
+--         Just (Directory _ _, _) -> Just filesystem
+--         Just (Entry oldFile, crumbs) ->
+--             Just $ navigateUp (Entry oldFile {fileContent = content}, crumbs)
 
-copy :: Filesystem -> (Path, Path) -> Maybe Filesystem
-copy filesystem (srcPath, destPath) = do
-    -- Navigate to the source file
-    (srcFile, _) <- navigate filesystem srcPath
-    -- Navigate to the destination path
-    (destFile, destCrumbs) <- navigate filesystem destPath
-    -- Ensure the destination is a directory
-    case destFile of
-        Entry _ -> Nothing
-        Directory dirName contents -> let newContents = srcFile : contents
-                                          newDir = Directory dirName newContents
-                                          newFilesystem = navigateToRoot (newDir, destCrumbs)
-                                        in navigate newFilesystem (getPath crumbs)
-                                        where
-                                            (_, crumbs) = filesystem
+-- copy :: Filesystem -> (Path, Path) -> Maybe Filesystem
+-- copy filesystem (srcPath, destPath) = do
+--     -- Navigate to the source file
+--     (srcFile, _) <- navigate filesystem srcPath
+--     -- Navigate to the destination path
+--     (destFile, destCrumbs) <- navigate filesystem destPath
+--     -- Ensure the destination is a directory
+--     case destFile of
+--         Entry _ -> Nothing
+--         Directory dirName contents -> let newContents = srcFile : contents
+--                                           newDir = Directory dirName newContents
+--                                           newFilesystem = navigateToRoot (newDir, destCrumbs)
+--                                         in navigate newFilesystem (getPath crumbs)
+--                                         where
+--                                             (_, crumbs) = filesystem
 
 
