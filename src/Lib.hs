@@ -5,7 +5,6 @@ where
 
 import Data.List (intercalate, tails, isPrefixOf)
 import Data.Either (rights)
-
 -- Type definitions
 type Name = String
 type Content = String
@@ -48,16 +47,16 @@ listContents :: Filesystem -> String
 listContents (Entry _, _) = ""
 listContents (Directory _ contents, _) = intercalate "\n" (map show contents)
 
--- listContents :: Filesystem -> String
--- listContents (rootItem, _) = listContentsHelper 0 rootItem
---   where
---     indentPerLevel = 4 -- Number of spaces for each indentation level
---     listContentsHelper :: Int -> FSItem -> String
---     listContentsHelper indent (Entry file) =
---         replicate indent ' ' ++ "- " ++ fileName file ++ "\n"
---     listContentsHelper indent (Directory dirName contents) =
---         replicate indent ' ' ++ "- " ++ dirName ++ "/\n" ++
---         concatMap (listContentsHelper (indent + indentPerLevel)) contents
+printFSTree :: Filesystem -> String
+printFSTree (rootItem, _) = go 0 rootItem
+  where
+    indentPerLevel = 4 -- Number of spaces for each indentation level
+    go :: Int -> FSItem -> String
+    go indent (Entry file) =
+        replicate indent ' ' ++ "- " ++ fileName file ++ "\n"
+    go indent (Directory dirName contents) =
+        replicate indent ' ' ++ "- " ++ dirName ++ "/\n" ++
+        concatMap (go (indent + indentPerLevel)) contents
 
 
 -- Utility functions
@@ -83,10 +82,13 @@ simpleFS = Directory "root"
                     Entry $ TextFile "README.md" "Some markdown"
                 ]
 
+emptyFS :: FSItem
+emptyFS = Directory "root" []
+
 
 -- Navigation
 navigate :: Filesystem -> Path -> Either String Filesystem
-navigate (Entry _, _) _ = Left "Cannot navigate upwards from a file. Please consider using `close`."
+-- navigate (Entry _, _) _ = Left "Cannot navigate upwards from a file. Please consider using `close`."
 navigate filesystem "" = Right filesystem
 navigate filesystem path =
     case targetDir of
@@ -104,7 +106,7 @@ navigateDown filesystem name =
     let result = searchDirectory filesystem name
     in case result of
         Left _ -> Left $ printWorkingDirectory filesystem ++ name ++ " is not a valid path."
-        Right (Entry _, _) -> Left $ name ++ " : Not a directory"
+        -- Right (Entry _, _) -> Left $ name ++ " : Not a directory"
         _ -> result
 
 navigateUp :: Filesystem -> Filesystem
@@ -132,7 +134,9 @@ searchDirectory (Directory dirName contents, crumbs) targetName =
 
 searchCurrentDirectory :: Filesystem -> (FSItem -> Bool) -> Either String [Path]
 searchCurrentDirectory (Entry _, _) _ = Left "Cannot perform search on a file"
-searchCurrentDirectory (Directory _ contents, _) f = Right $ map show (filter f contents)
+searchCurrentDirectory (Directory _ contents, crumbs) f = 
+    let path = getPath crumbs
+    in Right $ map (path++) $ map show (filter f contents)
 
 searchRecursive ::(FSItem -> Bool) -> Filesystem ->  Either String [Path]
 searchRecursive f (Directory dirName contents, crumbs) =
@@ -203,27 +207,32 @@ rename :: Filesystem -> Name -> Either String Filesystem
 rename (Directory _ contents, crumbs) newDirName = Right (Directory newDirName contents, crumbs)
 rename (Entry (TextFile _ content), crumbs) newFileName = Right (Entry $ TextFile newFileName content, crumbs) 
 
--- updateFile :: Name -> Content -> Filesystem -> Maybe Filesystem
--- updateFile name content filesystem = case searchDirectory name filesystem of
---         Nothing -> Nothing
---         Just (Directory _ _, _) -> Just filesystem
---         Just (Entry oldFile, crumbs) ->
---             Just $ navigateUp (Entry oldFile {fileContent = content}, crumbs)
+update :: Filesystem -> IO (Either String Filesystem)
+update (Directory _ _, _) = return $ Left "Is a directory."
+update (Entry file, crumbs) = do
+    putStrLn "Please enter new content."
+    newContent <- getLine
+    return $ Right (Entry $ TextFile (fileName file) newContent, crumbs)
 
--- copy :: Filesystem -> (Path, Path) -> Maybe Filesystem
--- copy filesystem (srcPath, destPath) = do
---     -- Navigate to the source file
---     (srcFile, _) <- navigate filesystem srcPath
---     -- Navigate to the destination path
---     (destFile, destCrumbs) <- navigate filesystem destPath
---     -- Ensure the destination is a directory
---     case destFile of
---         Entry _ -> Nothing
---         Directory dirName contents -> let newContents = srcFile : contents
---                                           newDir = Directory dirName newContents
---                                           newFilesystem = navigateToRoot (newDir, destCrumbs)
---                                         in navigate newFilesystem (getPath crumbs)
---                                         where
---                                             (_, crumbs) = filesystem
+printFile :: Filesystem -> Either String String
+printFile (Directory _ _, _) = Left "Cannot print a directory!"
+printFile (Entry file, _) = Right $ "File Name : " ++ fileName file ++ "\n" ++
+                                    "File contents : " ++ fileContent file
+
+copy :: Filesystem -> (Path, Path) -> Either String Filesystem
+copy filesystem (srcPath, destPath) = do
+    -- Navigate to the source file
+    (srcFile, _) <- navigate filesystem srcPath
+    -- Navigate to the destination path
+    (destFile, destCrumbs) <- navigate filesystem destPath
+    -- Ensure the destination is a directory
+    case destFile of
+        Entry _ -> Left "The destination must be a file!"
+        Directory dirName contents -> let newContents = srcFile : contents
+                                          newDir = Directory dirName newContents
+                                          newFilesystem = navigateToRoot (newDir, destCrumbs)
+                                        in navigate newFilesystem (getPath crumbs)
+                                        where
+                                            (_, crumbs) = filesystem
 
 
