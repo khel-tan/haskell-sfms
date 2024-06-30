@@ -38,8 +38,10 @@ getPath [] = ""
 getPath crumbs = (intercalate "/" . map show . reverse $ crumbs) ++ "/"
 
 printWorkingDirectory :: Filesystem -> String
-printWorkingDirectory (Directory dirName _, crumbs) = getPath crumbs ++ dirName ++ " >"
-printWorkingDirectory filesystem = (printWorkingDirectory . navigateUp) filesystem
+printWorkingDirectory (Directory dirName _, crumbs) = getPath crumbs ++ dirName ++ "$ "
+printWorkingDirectory filesystem = let (Entry file, _) = filesystem
+                                    in (printWorkingDirectory . navigateUp) filesystem
+                                    ++ fileName file ++ "# "
 
 -- Function to list the contents of a filesystem with indentation
 listContents :: Filesystem -> String
@@ -84,6 +86,7 @@ simpleFS = Directory "root"
 
 -- Navigation
 navigate :: Filesystem -> Path -> Either String Filesystem
+navigate (Entry _, _) _ = Left "Cannot navigate upwards from a file. Please consider using `close`."
 navigate filesystem "" = Right filesystem
 navigate filesystem path =
     case targetDir of
@@ -101,6 +104,7 @@ navigateDown filesystem name =
     let result = searchDirectory filesystem name
     in case result of
         Left _ -> Left $ printWorkingDirectory filesystem ++ name ++ " is not a valid path."
+        Right (Entry _, _) -> Left $ name ++ " : Not a directory"
         _ -> result
 
 navigateUp :: Filesystem -> Filesystem
@@ -183,6 +187,21 @@ readItem filesystem name =
         Right (Entry file, _) -> Right $ fileContent file
         Right (Directory _ _, _) -> Left $ name ++ " is a directory."
         Left errorMsg -> Left errorMsg
+
+openFile :: Filesystem -> Name -> Either String Filesystem
+openFile filesystem name =
+    let result = searchDirectory filesystem name
+    in case result of
+        Right (Directory _ _, _) -> Left "Cannot open a directory!"
+        _ -> result
+
+closeFile :: Filesystem -> Either String Filesystem
+closeFile (Directory _ _, _) = Left "Cannot close a directory!"
+closeFile fileFocus = Right $ navigateUp fileFocus
+
+rename :: Filesystem -> Name -> Either String Filesystem
+rename (Directory _ contents, crumbs) newDirName = Right (Directory newDirName contents, crumbs)
+rename (Entry (TextFile _ content), crumbs) newFileName = Right (Entry $ TextFile newFileName content, crumbs) 
 
 -- updateFile :: Name -> Content -> Filesystem -> Maybe Filesystem
 -- updateFile name content filesystem = case searchDirectory name filesystem of

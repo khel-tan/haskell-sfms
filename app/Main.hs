@@ -2,8 +2,8 @@ module Main (main) where
 
 import Lib
 import System.IO (hFlush, stdout)
-import Lib (searchCurrentDirectory, nameContains, searchRecursive)
 import Data.List (intercalate)
+import Lib (rename)
 
 main :: IO ()
 main = do
@@ -49,6 +49,13 @@ handleCommand filesystem command args =
       -- CRUD Operations
       ("create", [name]) -> return $ handleModify (createFile filesystem name) "Creating file..."
       ("cat", [itemName]) -> return $ handleRead (readItem filesystem itemName)
+      ("open", [itemName]) -> return $ handleModify (openFile filesystem itemName) "Opening file..."
+      ("close", []) -> return $ handleModify (closeFile filesystem) "Closing file..."
+      ("rename", [name]) -> return $ handleModify (rename filesystem name) "Renaming file..." 
+      -- ("update")
+      -- ("rename")
+      -- ("?")
+      -- ("open", [itemName]) -> 
       -- ("update", [name]) -> if fileExists name filesystem
       --             then do
       --                 putStrLn "Please enter new content"
