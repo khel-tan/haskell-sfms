@@ -3,8 +3,8 @@ module Lib
   )
 where
 
-import Data.List (intercalate, find)
-
+import Data.List (intercalate, tails, isPrefixOf)
+import Data.Either (rights)
 
 -- Type definitions
 type Name = String
@@ -17,7 +17,7 @@ data File = TextFile
     { fileName :: Name,
     fileContent :: Content
   } deriving (Show)
-data FSItem = Entry File | Directory Name [FSItem] deriving (Show)
+data FSItem = Entry File | Directory Name [FSItem]
 
 -- Necessary definitions for zipper
 data FSCrumb = FSCrumb Name [FSItem] [FSItem]
@@ -27,6 +27,10 @@ type Filesystem = (FSItem, FSCrumbTrail)
 instance Show FSCrumb where
     show (FSCrumb dirName _ _) = dirName
 
+instance Show FSItem where
+    show (Entry file) = fileName file
+    show (Directory dirName _) = dirName
+
 
 --Display functions
 getPath :: FSCrumbTrail -> Path
@@ -35,22 +39,34 @@ getPath crumbs = (intercalate "/" . map show . reverse $ crumbs) ++ "/"
 
 printWorkingDirectory :: Filesystem -> String
 printWorkingDirectory (Directory dirName _, crumbs) = getPath crumbs ++ dirName ++ " >"
-printWorkingDirectory filesystem = printWorkingDirectory $ navigateUp filesystem
+printWorkingDirectory filesystem = (printWorkingDirectory . navigateUp) filesystem
 
 -- Function to list the contents of a filesystem with indentation
 listContents :: Filesystem -> String
-listContents (rootItem, _) = listContentsHelper 0 rootItem
-  where
-    indentPerLevel = 4 -- Number of spaces for each indentation level
-    listContentsHelper :: Int -> FSItem -> String
-    listContentsHelper indent (Entry file) =
-        replicate indent ' ' ++ "- " ++ fileName file ++ "\n"
-    listContentsHelper indent (Directory dirName contents) =
-        replicate indent ' ' ++ "- " ++ dirName ++ "/\n" ++
-        concatMap (listContentsHelper (indent + indentPerLevel)) contents
+listContents (Entry _, _) = ""
+listContents (Directory _ contents, _) = intercalate "\n" (map show contents)
+
+-- listContents :: Filesystem -> String
+-- listContents (rootItem, _) = listContentsHelper 0 rootItem
+--   where
+--     indentPerLevel = 4 -- Number of spaces for each indentation level
+--     listContentsHelper :: Int -> FSItem -> String
+--     listContentsHelper indent (Entry file) =
+--         replicate indent ' ' ++ "- " ++ fileName file ++ "\n"
+--     listContentsHelper indent (Directory dirName contents) =
+--         replicate indent ' ' ++ "- " ++ dirName ++ "/\n" ++
+--         concatMap (listContentsHelper (indent + indentPerLevel)) contents
 
 
 -- Utility functions
+
+nameIs :: Name -> FSItem -> Bool
+nameIs name (Entry file) = name == fileName file
+nameIs name (Directory dirName _) = name == dirName
+
+nameContains :: String -> FSItem -> Bool
+nameContains substr (Entry file) = any (isPrefixOf substr) (tails $ fileName file)
+nameContains substr (Directory dirName _) = any (isPrefixOf substr) (tails dirName)
 
 -- fileExists :: Name -> Filesystem -> Bool
 -- fileExists name = isJust . searchDirectory name
@@ -94,7 +110,7 @@ navigateUp filesystem = filesystem
 
 navigateToRoot :: Filesystem -> Filesystem
 navigateToRoot (currentDir, []) = (currentDir, [])
-navigateToRoot filesystem = navigateToRoot $ navigateUp filesystem
+navigateToRoot filesystem = (navigateToRoot . navigateUp) filesystem
 
 -- Search
 
@@ -109,6 +125,24 @@ searchDirectory (Directory dirName contents, crumbs) targetName =
     isTarget :: FSItem -> Bool
     isTarget (Entry file) = fileName file == targetName
     isTarget (Directory subdirName _) = subdirName == targetName
+
+searchCurrentDirectory :: Filesystem -> (FSItem -> Bool) -> Either String [Path]
+searchCurrentDirectory (Entry _, _) _ = Left "Cannot perform search on a file"
+searchCurrentDirectory (Directory _ contents, _) f = Right $ map show (filter f contents)
+
+searchRecursive ::(FSItem -> Bool) -> Filesystem ->  Either String [Path]
+searchRecursive f (Directory dirName contents, crumbs) =
+        case result of
+            [] -> Left "The specified entry does not exist"
+            _ -> Right result
+        where
+            dir = (Directory dirName contents, crumbs)
+            go :: [FSItem] -> [Name]
+            go = map show
+            result = concat $ rights $ searchCurrentDirectory dir f:rest
+            rest = map (searchRecursive f) 
+                $ rights $ map (navigateDown dir) (go contents)
+searchRecursive f filesystem = searchCurrentDirectory filesystem f
 
 -- searchRecursive :: Name -> Filesystem -> Maybe Filesystem
 -- searchRecursive _ (Entry _, _) = Nothing
@@ -135,11 +169,12 @@ createFile filesystem name = createItem filesystem (Entry $ TextFile name "")
 createDirectory :: Filesystem -> Name -> Either String Filesystem
 createDirectory filesystem dirName = createItem filesystem (Directory dirName [])
 
--- deleteItem :: Name -> Filesystem -> Maybe Filesystem
--- deleteItem name filesystem = case searchDirectory name filesystem of
---             Nothing -> Just filesystem
---             Just (_, FSCrumb dirName ls rs:crumbs) -> Just $ navigateUp (Directory dirName (ls++rs), crumbs)
---             _ -> Nothing
+deleteItem :: Filesystem -> Name -> Either String Filesystem
+deleteItem filesystem name =
+    let result = searchDirectory filesystem name 
+        in case result of
+        Right (_, FSCrumb dirName ls rs:crumbs) -> Right $ navigateUp (Directory dirName (ls++rs), crumbs)
+        _ -> result
 
 readItem :: Filesystem -> Name -> Either String String
 readItem filesystem name = 

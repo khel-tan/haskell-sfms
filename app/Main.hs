@@ -2,6 +2,8 @@ module Main (main) where
 
 import Lib
 import System.IO (hFlush, stdout)
+import Lib (searchCurrentDirectory, nameContains, searchRecursive)
+import Data.List (intercalate)
 
 main :: IO ()
 main = do
@@ -13,7 +15,7 @@ main = do
 
 loop :: Filesystem -> IO ()
 loop filesystem = do
-  putStrLn "Looping"
+  -- putStrLn "Looping"
   putStr $ printWorkingDirectory filesystem
   hFlush stdout
   input <- getLine
@@ -38,9 +40,14 @@ handleCommand filesystem command args =
 
       -- ("search", [target]) -> return (searchRecursive target $ navigateToRoot  filesystem, "Searching all...")
       -- ("search", [".", target]) -> return (searchDirectory target filesystem, "Searching...")
+      ("search", [".", "--substring", target]) ->
+          return $ handleSearch (searchRecursive (nameContains target) filesystem)
+      ("search", [".", "--full-name", target]) ->
+          return $ handleSearch (searchRecursive (nameIs target) filesystem )
       ("mkdir", [dirName]) -> return $ handleModify (createDirectory filesystem dirName) "Creating directory"
       
-      -- ("create", [name]) -> return (createFile name filesystem, "Creating file...")
+      -- CRUD Operations
+      ("create", [name]) -> return $ handleModify (createFile filesystem name) "Creating file..."
       ("cat", [itemName]) -> return $ handleRead (readItem filesystem itemName)
       -- ("update", [name]) -> if fileExists name filesystem
       --             then do
@@ -48,7 +55,7 @@ handleCommand filesystem command args =
       --                 newContent <- getLine
       --                 return (updateFile name newContent filesystem, "Updating...")
       --             else return (Just filesystem, "File not found...")
-      -- ("rm", [itemName]) -> return (deleteItem itemName filesystem, "Deleting...")
+      ("rm", [itemName]) -> return $ handleModify (deleteItem filesystem itemName) "Item deleted!"
       ("ls", []) -> return (filesystem, listContents filesystem)
       -- ("cp", [src, dest]) -> return (copy filesystem (src, dest), "Copying...")
       
@@ -57,7 +64,12 @@ handleCommand filesystem command args =
     handleModify :: Either String Filesystem -> String -> (Filesystem, String)
     handleModify (Left errorMsg) _ = (filesystem, errorMsg)
     handleModify (Right newFilesystem) msg = (newFilesystem, msg)
+
     handleRead :: Either String String -> (Filesystem, String)
     handleRead (Left errorMsg) = (filesystem, errorMsg)
     handleRead (Right output) = (filesystem, output)
+
+    handleSearch :: Either String [Path] -> (Filesystem, String)
+    handleSearch (Left errorMsg) = (filesystem, errorMsg)
+    handleSearch (Right paths) = (filesystem, intercalate "\n" paths)
 
