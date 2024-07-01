@@ -5,6 +5,8 @@ where
 
 import Data.List (intercalate, tails, isPrefixOf)
 import Data.Either (rights)
+
+
 -- Type definitions
 type Name = String
 type Content = String
@@ -32,10 +34,13 @@ instance Show FSItem where
 
 
 --Display functions
+-- Constructs Path string from crumb trail
 getPath :: FSCrumbTrail -> Path
 getPath [] = ""
 getPath crumbs = (intercalate "/" . map show . reverse $ crumbs) ++ "/"
 
+-- prints the current directory
+-- The part between $ and # is the currently open file.
 printWorkingDirectory :: Filesystem -> String
 printWorkingDirectory (Directory dirName _, crumbs) = getPath crumbs ++ dirName ++ "$ "
 printWorkingDirectory filesystem = let (Entry file, _) = filesystem
@@ -69,9 +74,6 @@ nameContains :: String -> FSItem -> Bool
 nameContains substr (Entry file) = any (isPrefixOf substr) (tails $ fileName file)
 nameContains substr (Directory dirName _) = any (isPrefixOf substr) (tails dirName)
 
--- fileExists :: Name -> Filesystem -> Bool
--- fileExists name = isJust . searchDirectory name
-
 -- Test filesystems
 simpleFS ::FSItem
 simpleFS = Directory "root"
@@ -82,6 +84,7 @@ simpleFS = Directory "root"
                     Entry $ TextFile "README.md" "Some markdown"
                 ]
 
+-- Default file system with only the root
 emptyFS :: FSItem
 emptyFS = Directory "root" []
 
@@ -98,12 +101,13 @@ navigate filesystem path =
         _ -> navigateDown filesystem targetDir >>=  (`navigate` cleanRest)
     where
         (targetDir, rest) = break ('/'==) path
+        -- Clean the rest of the path as having the '/' as head confuses `navigate`
         cleanRest = case rest of
             '/' : xs -> xs
             _ -> rest
 navigateDown :: Filesystem -> Name -> Either String Filesystem
-navigateDown filesystem name = 
-    let result = searchDirectory filesystem name
+navigateDown filesystem name =
+    let result = focus filesystem name
     in case result of
         Left _ -> Left $ printWorkingDirectory filesystem ++ name ++ " is not a valid path."
         -- Right (Entry _, _) -> Left $ name ++ " : Not a directory"
@@ -119,11 +123,11 @@ navigateToRoot (currentDir, []) = (currentDir, [])
 navigateToRoot filesystem = (navigateToRoot . navigateUp) filesystem
 
 -- Search
-
-searchDirectory :: Filesystem -> Name -> Either String Filesystem
-searchDirectory (Entry _, _) _ = 
+-- Tries to search the specified file/directory in the current directory and focuses on it
+focus :: Filesystem -> Name -> Either String Filesystem
+focus (Entry _, _) _ =
     Left "Cannot search for a file when we are focused on a file!"
-searchDirectory (Directory dirName contents, crumbs) targetName =
+focus (Directory dirName contents, crumbs) targetName =
     case break isTarget contents of
         (_, []) -> Left "File not found."
         (left, item:right) -> Right (item, FSCrumb dirName left right : crumbs)
@@ -132,12 +136,14 @@ searchDirectory (Directory dirName contents, crumbs) targetName =
     isTarget (Entry file) = fileName file == targetName
     isTarget (Directory subdirName _) = subdirName == targetName
 
+-- Looks for items in the current directory that satisfy the given functions
 searchCurrentDirectory :: Filesystem -> (FSItem -> Bool) -> Either String [Path]
 searchCurrentDirectory (Entry _, _) _ = Left "Cannot perform search on a file"
-searchCurrentDirectory (Directory _ contents, crumbs) f = 
+searchCurrentDirectory (Directory _ contents, crumbs) f =
     let path = getPath crumbs
-    in Right $ map (path++) $ map show (filter f contents)
+    in Right $ map ((path++) . show) (filter f contents)
 
+-- searchCurrentDirectory but recursive version
 searchRecursive ::(FSItem -> Bool) -> Filesystem ->  Either String [Path]
 searchRecursive f (Directory dirName contents, crumbs) =
         case result of
@@ -148,27 +154,15 @@ searchRecursive f (Directory dirName contents, crumbs) =
             go :: [FSItem] -> [Name]
             go = map show
             result = concat $ rights $ searchCurrentDirectory dir f:rest
-            rest = map (searchRecursive f) 
+            rest = map (searchRecursive f)
                 $ rights $ map (navigateDown dir) (go contents)
 searchRecursive f filesystem = searchCurrentDirectory filesystem f
 
--- searchRecursive :: Name -> Filesystem -> Maybe Filesystem
--- searchRecursive _ (Entry _, _) = Nothing
--- searchRecursive targetName dir =
---     let (Directory dirName contents, crumbs) = dir in
---         case searchDirectory targetName dir of
---             Nothing -> fromJust $ find isJust (map (searchRecursive targetName) $ mapMaybe (go dir) contents)
---             result -> result
---             where
---                 go :: Filesystem -> FSItem -> Maybe Filesystem
---                 go fs (Entry file) = navigateDown (fileName file) fs
---                 go fs (Directory dirName _) = navigateDown dirName fs
-
--- CRUD and meta logic for files and directories
+-- CRUD Logic for files and directories
 createItem :: Filesystem -> FSItem -> Either String Filesystem
-createItem (Entry _, _) _ = 
+createItem (Entry _, _) _ =
     Left "Cannot create an item inside a file. This action is legal only inside a directory!"
-createItem (Directory dirName contents, crumbs) item = 
+createItem (Directory dirName contents, crumbs) item =
     Right (Directory dirName (item:contents), crumbs)
 
 createFile :: Filesystem -> Name -> Either String Filesystem
@@ -179,14 +173,14 @@ createDirectory filesystem dirName = createItem filesystem (Directory dirName []
 
 deleteItem :: Filesystem -> Name -> Either String Filesystem
 deleteItem filesystem name =
-    let result = searchDirectory filesystem name 
+    let result = focus filesystem name
         in case result of
         Right (_, FSCrumb dirName ls rs:crumbs) -> Right $ navigateUp (Directory dirName (ls++rs), crumbs)
         _ -> result
 
 readItem :: Filesystem -> Name -> Either String String
-readItem filesystem name = 
-    let item = searchDirectory filesystem name
+readItem filesystem name =
+    let item = focus filesystem name
     in case item of
         Right (Entry file, _) -> Right $ fileContent file
         Right (Directory _ _, _) -> Left $ name ++ " is a directory."
@@ -194,7 +188,7 @@ readItem filesystem name =
 
 openFile :: Filesystem -> Name -> Either String Filesystem
 openFile filesystem name =
-    let result = searchDirectory filesystem name
+    let result = focus filesystem name
     in case result of
         Right (Directory _ _, _) -> Left "Cannot open a directory!"
         _ -> result
@@ -203,10 +197,12 @@ closeFile :: Filesystem -> Either String Filesystem
 closeFile (Directory _ _, _) = Left "Cannot close a directory!"
 closeFile fileFocus = Right $ navigateUp fileFocus
 
+-- Rename directories and files
 rename :: Filesystem -> Name -> Either String Filesystem
 rename (Directory _ contents, crumbs) newDirName = Right (Directory newDirName contents, crumbs)
-rename (Entry (TextFile _ content), crumbs) newFileName = Right (Entry $ TextFile newFileName content, crumbs) 
+rename (Entry (TextFile _ content), crumbs) newFileName = Right (Entry $ TextFile newFileName content, crumbs)
 
+-- Updates the currently open file. The terminal takes in input and the file is updated,
 update :: Filesystem -> IO (Either String Filesystem)
 update (Directory _ _, _) = return $ Left "Is a directory."
 update (Entry file, crumbs) = do

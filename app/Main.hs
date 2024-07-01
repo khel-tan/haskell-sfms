@@ -10,7 +10,7 @@ main = do
   let initialState = emptyFS
       crumbs = []
       filesystem =  (initialState, crumbs)
-  putStrLn "Please type in `?` to see a list of commands."
+  putStrLn "Please type in `?` to see a list of legal commands."
   loop filesystem
 
 
@@ -83,8 +83,10 @@ handleCommand filesystem command args =
     handleSearch (Right paths) = (filesystem, intercalate "\n" paths)
 
 listAllCommands :: String
-listAllCommands = intercalate "\n" commands
+listAllCommands = intercalate "\n" (explanations ++ commands)
   where
+    explanations = ["The text before the $ indicates the directory. When we have opened a file,\
+                  \ the prompt changes to `[Path] $ OpenedFileName #`."]
     commands = ["cd : Change directory", 
               "search : Search files and directories with a given name or substring", 
               "cat : Print the contents of a file", 
