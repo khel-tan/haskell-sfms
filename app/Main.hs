@@ -47,18 +47,20 @@ handleCommand filesystem command args =
           do
             let newFilesystem = fromRight filesystem $ navigate filesystem path
             return $ handleSearch (searchRecursive (nameIs target) newFilesystem)
-      ("mkdir", [dirName]) -> return $ handleModify (createDirectory filesystem dirName) "Creating directory"
-      
-      -- CRUD Operations
-      ("create", [name]) -> return $ handleModify (createFile filesystem name) "Creating file..."
       ("cat", [itemName]) -> return $ handleRead (readItem filesystem itemName)
-      
+      ("mkdir", [dirName]) -> return $ handleModify (createDirectory filesystem dirName) "Creating directory"
+      ("create", [name]) -> return $ handleModify (createFile filesystem name) "Creating file..."
+
+
+      -- Commands that involve opening a file
       ("open", [itemName]) -> return $ handleModify (openFile filesystem itemName) "Opening file..."
       ("close", []) -> return $ handleModify (closeFile filesystem) "Closing file..."
       ("rename", [name]) -> return $ handleModify (rename filesystem name) "Renaming file..." 
       ("update", []) -> do
                           result <- update filesystem
                           return $ handleModify result "Updating..."
+
+
       ("print", []) -> return $ handleRead (printFile filesystem)
       ("rm", [itemName]) -> return $ handleModify (deleteItem filesystem itemName) "Item deleted!"
       ("ls", []) -> return (filesystem, listContents filesystem)

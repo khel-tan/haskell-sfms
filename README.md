@@ -16,14 +16,21 @@ A virtual file management system in the spirit of UNIX/Linux written in Haskell
 - [Project Roadmap](#roadmap)
 
 ## Features
-- Basic commands such as cd, ls, mkdir
-    - cd works on absolute and relative paths
-- Basic search by name within the current directory
-- CRUD commands on files
-  - create
-  - cat (read)
-  - update
-  - delete
+- Commands
+  - cd : Change directory
+  - search : Search for files/directories with a given name or a substring in its name
+  - ls : List contents of current directory
+  - tree : Print a pretty tree of the directory structure with the current directory as the root
+  - mkdir : Create a new directory
+  - create : Create a new file
+  - open : Open file
+  - close : Close file
+  - cat : Print the contents of a file
+  - update : Update an open file
+  - rename : Rename the currently focused directory/file
+  - print : Print the name and content of the currently open file
+  - rm : Remove the specified directory/file
+  - ? : Exposition about the available commands and their details
 
 ## Intended Features
 - Search by substrings in names or content
