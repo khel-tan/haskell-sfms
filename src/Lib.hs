@@ -32,7 +32,13 @@ instance Show FSItem where
     show (Entry file) = fileName file
     show (Directory dirName _) = dirName ++ "/"
 
-
+-- instance Eq FSItem where
+--     (==) (Entry file1) (Entry file2) = fileName file1 == fileName file2 &&
+--                                         fileContent file1 == fileContent file2
+--     (==) (Directory dir1Name _) (Directory dir2Name _) = dir1Name == dir2Name
+--     (==) (Entry file1)
+--     (==) _ _ = False
+--     (/=) item1 item2 = not (item1 == item2)
 --Display functions
 -- Constructs Path string from crumb trail
 getPath :: FSCrumbTrail -> Path
@@ -74,6 +80,11 @@ nameContains :: String -> FSItem -> Bool
 nameContains substr (Entry file) = any (isPrefixOf substr) (tails $ fileName file)
 nameContains substr (Directory dirName _) = any (isPrefixOf substr) (tails dirName)
 
+sameName :: FSItem -> FSItem -> Bool
+sameName (Entry file) (Directory dirName _) = fileName file == dirName
+sameName (Directory dirName _) (Entry file) = dirName == fileName file
+sameName (Entry file1) (Entry file2) = fileName file1 == fileName file2
+sameName (Directory dir1Name _) (Directory dir2Name _) = dir1Name == dir2Name
 -- Test filesystems
 simpleFS ::FSItem
 simpleFS = Directory "root"
@@ -97,7 +108,7 @@ navigate filesystem path =
     case targetDir of
         ".." -> navigate (navigateUp filesystem) cleanRest
         "." -> navigate filesystem cleanRest
-        "root" -> navigate (navigateToRoot filesystem) cleanRest
+        -- "root" -> navigate (navigateToRoot filesystem) cleanRest
         _ -> navigateDown filesystem targetDir >>=  (`navigate` cleanRest)
     where
         (targetDir, rest) = break ('/'==) path
@@ -162,8 +173,10 @@ searchRecursive f filesystem = searchCurrentDirectory filesystem f
 createItem :: Filesystem -> FSItem -> Either String Filesystem
 createItem (Entry _, _) _ =
     Left "Cannot create an item inside a file. This action is legal only inside a directory!"
-createItem (Directory dirName contents, crumbs) item =
-    Right (Directory dirName (item:contents), crumbs)
+createItem (Directory dirName contents, crumbs) item
+    | not $ any (sameName item) contents = 
+        Right (Directory dirName (item:contents), crumbs)
+    | otherwise = Left "Item already exists!"
 
 createFile :: Filesystem -> Name -> Either String Filesystem
 createFile filesystem name = createItem filesystem (Entry $ TextFile name "")
@@ -223,12 +236,14 @@ copy filesystem (srcPath, destPath) = do
     (destFile, destCrumbs) <- navigate filesystem destPath
     -- Ensure the destination is a directory
     case destFile of
-        Entry _ -> Left "The destination must be a file!"
-        Directory dirName contents -> let newContents = srcFile : contents
-                                          newDir = Directory dirName newContents
-                                          newFilesystem = navigateToRoot (newDir, destCrumbs)
-                                        in navigate newFilesystem (getPath crumbs)
-                                        where
-                                            (_, crumbs) = filesystem
+        Entry _ -> Left "The destination must be a directory!"
+        Directory _ _ -> let    (_, crumbs) = filesystem
+                                newItem =  createItem (destFile, destCrumbs) srcFile
+                        in copyHelper newItem crumbs
+        where
+            copyHelper :: Either String Filesystem -> [FSCrumb] -> Either String Filesystem
+            copyHelper (Left errorMsg) _ = Left errorMsg
+            copyHelper (Right newFilesystem) crumbs =
+                navigate (navigateToRoot newFilesystem) (getPath crumbs)
 
 

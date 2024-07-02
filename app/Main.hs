@@ -19,10 +19,11 @@ main = do
 loop :: Filesystem -> IO ()
 loop filesystem = do
   -- putStrLn "Looping"
-  done <- isEOF
-  when done $ putStrLn "Exiting" >> exitSuccess
+  
   putStr $ printWorkingDirectory filesystem
   hFlush stdout
+  eof <- isEOF
+  when eof $ putStrLn "" >> exitSuccess
   input <- getLine
   let inputList = words input
   case inputList of
@@ -30,7 +31,7 @@ loop filesystem = do
       putStrLn "No command entered..."
       loop filesystem
     (command:args) -> case command of
-      "exit" -> putStrLn "Exiting..."
+      "exit" -> putStrLn "" >> exitSuccess
       _ -> do
         
         (newFilesystem, output ) <- handleCommand filesystem command args
@@ -93,7 +94,8 @@ listAllCommands = intercalate "\n" (explanations ++ commands)
   where
     explanations = ["The text before the $ indicates the directory. When we have opened a file,\
                   \ the prompt changes to `[Path] $ OpenedFileName #`."]
-    commands = ["cd : Change directory", 
+    commands = ["? : Information about legal commands",
+                "cd : Change directory", 
               "search : Search files and directories with a given name or substring", 
               "cat : Print the contents of a file", 
               "create : Create a new file in the current directory", 
@@ -112,6 +114,7 @@ listAllCommands = intercalate "\n" (explanations ++ commands)
 explainCommand :: String -> String
 explainCommand command =
   case command of
+    "?" -> help_text
     "cd" -> cd_text
     "search" -> search_text
     "cat" -> cat_text
@@ -128,6 +131,9 @@ explainCommand command =
     "cp" -> cp_text
     _ -> "Command unrecognised! Type `?` to see a list of all legal commands."
   where
+    help_text = "? : ? [Optionally command name]\
+                \ Just type in `?` to see a list of available commands.\n\
+                \ Type `? [command]` to see a brief explanation of how said command works."
     cd_text = "cd : cd [Dir]\n\
           \ Change the directory as specified. `..` indicates parent directory.\n\
           \`.` indicates the current directory. An empty argument navigates us to root."
