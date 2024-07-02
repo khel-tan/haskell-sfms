@@ -78,15 +78,15 @@ handleCommand filesystem command args =
       _ -> return (filesystem, "Command invalid. Try again...")
   where
     handleModify :: Either String Filesystem -> String -> (Filesystem, String)
-    handleModify (Left errorMsg) _ = (filesystem, errorMsg)
+    handleModify (Left errorMsg) _ = (filesystem, "Error : " ++ errorMsg)
     handleModify (Right newFilesystem) msg = (newFilesystem, msg)
 
     handleRead :: Either String String -> (Filesystem, String)
-    handleRead (Left errorMsg) = (filesystem, errorMsg)
+    handleRead (Left errorMsg) = (filesystem, "Error : " ++ errorMsg)
     handleRead (Right output) = (filesystem, output)
 
     handleSearch :: Either String [Path] -> (Filesystem, String)
-    handleSearch (Left errorMsg) = (filesystem, errorMsg)
+    handleSearch (Left errorMsg) = (filesystem, "Error : " ++ errorMsg)
     handleSearch (Right paths) = (filesystem, intercalate "\n" paths)
 
 listAllCommands :: String
