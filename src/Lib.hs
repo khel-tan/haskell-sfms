@@ -30,7 +30,7 @@ instance Show FSCrumb where
 
 instance Show FSItem where
     show (Entry file) = fileName file
-    show (Directory dirName _) = dirName
+    show (Directory dirName _) = dirName ++ "/"
 
 
 --Display functions

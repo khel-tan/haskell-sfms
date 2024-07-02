@@ -1,9 +1,11 @@
 module Main (main) where
 
 import Lib
-import System.IO (hFlush, stdout)
+import System.IO (hFlush, stdout, isEOF)
 import Data.List (intercalate)
 import Data.Either(fromRight)
+import System.Exit(exitSuccess)
+import Control.Monad(when)
 
 main :: IO ()
 main = do
@@ -17,6 +19,8 @@ main = do
 loop :: Filesystem -> IO ()
 loop filesystem = do
   -- putStrLn "Looping"
+  done <- isEOF
+  when done $ putStrLn "Exiting" >> exitSuccess
   putStr $ printWorkingDirectory filesystem
   hFlush stdout
   input <- getLine
