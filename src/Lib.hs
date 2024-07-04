@@ -80,11 +80,12 @@ nameContains :: String -> FSItem -> Bool
 nameContains substr (Entry file) = any (isPrefixOf substr) (tails $ fileName file)
 nameContains substr (Directory dirName _) = any (isPrefixOf substr) (tails dirName)
 
+nameOf :: FSItem -> String
+nameOf (Entry (TextFile {fileName = name})) = name
+nameOf (Directory name _) = name
+
 sameName :: FSItem -> FSItem -> Bool
-sameName (Entry file) (Directory dirName _) = fileName file == dirName
-sameName (Directory dirName _) (Entry file) = dirName == fileName file
-sameName (Entry file1) (Entry file2) = fileName file1 == fileName file2
-sameName (Directory dir1Name _) (Directory dir2Name _) = dir1Name == dir2Name
+sameName f1 f2 = nameOf f1 == nameOf f2
 -- Test filesystems
 simpleFS ::FSItem
 simpleFS = Directory "root"
